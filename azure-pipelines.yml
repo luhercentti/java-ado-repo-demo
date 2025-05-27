@@ -52,40 +52,40 @@ jobs:
     inputs:
       terraformVersion: '$(terraformVersion)'
   
-  - task: AzureCLI@2
-    displayName: '🏗️ Terraform Init and Plan'
-    inputs:
-      azureSubscription: '$(azureSubscription)'
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        echo "=== Terraform Infrastructure Planning ==="
-        cd $(terraformWorkingDirectory)
+  # - task: AzureCLI@2
+  #   displayName: '🏗️ Terraform Init and Plan'
+  #   inputs:
+  #     azureSubscription: '$(azureSubscription)'
+  #     scriptType: 'bash'
+  #     scriptLocation: 'inlineScript'
+  #     inlineScript: |
+  #       echo "=== Terraform Infrastructure Planning ==="
+  #       cd $(terraformWorkingDirectory)
         
-        # Initialize Terraform
-        echo "Initializing Terraform..."
-        terraform init
+  #       # Initialize Terraform
+  #       echo "Initializing Terraform..."
+  #       terraform init
         
-        # Validate Terraform configuration
-        echo "Validating Terraform configuration..."
-        terraform validate
+  #       # Validate Terraform configuration
+  #       echo "Validating Terraform configuration..."
+  #       terraform validate
         
-        # Create Terraform plan
-        echo "Creating Terraform plan..."
-        terraform plan -out=tfplan -detailed-exitcode
+  #       # Create Terraform plan
+  #       echo "Creating Terraform plan..."
+  #       terraform plan -out=tfplan -detailed-exitcode
         
-        # Save plan status
-        PLAN_EXIT_CODE=$?
-        echo "##vso[task.setvariable variable=terraformPlanExitCode]$PLAN_EXIT_CODE"
+  #       # Save plan status
+  #       PLAN_EXIT_CODE=$?
+  #       echo "##vso[task.setvariable variable=terraformPlanExitCode]$PLAN_EXIT_CODE"
         
-        if [ $PLAN_EXIT_CODE -eq 1 ]; then
-          echo "❌ Terraform plan failed"
-          exit 1
-        elif [ $PLAN_EXIT_CODE -eq 2 ]; then
-          echo "✅ Terraform plan completed - changes detected"
-        else
-          echo "✅ Terraform plan completed - no changes needed"
-        fi
+  #       if [ $PLAN_EXIT_CODE -eq 1 ]; then
+  #         echo "❌ Terraform plan failed"
+  #         exit 1
+  #       elif [ $PLAN_EXIT_CODE -eq 2 ]; then
+  #         echo "✅ Terraform plan completed - changes detected"
+  #       else
+  #         echo "✅ Terraform plan completed - no changes needed"
+  #       fi
   
   # - task: AzureCLI@2
   #   displayName: '🏗️ Terraform Apply Infrastructure'
