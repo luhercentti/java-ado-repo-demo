@@ -5,7 +5,7 @@ trigger:
   branches:
     include:
     - main
-    - develop
+    #- develop
 
 variables:
   # Maven and Java settings
@@ -283,6 +283,7 @@ stages:
 
 # # ===== DEPLOY TO PRODUCTION =====
 # - stage: Deploy_Production
+#   dependsOn: Deploy_Development
 #   displayName: 'Deploy to Production'
 #   dependsOn: 
 #     - Infrastructure
