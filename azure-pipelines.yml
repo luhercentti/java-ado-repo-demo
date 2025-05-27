@@ -45,10 +45,3 @@ jobs:
   # ===== CHECKOUT =====
   - checkout: self
     displayName: 'Checkout Repository'
-  
-  # ===== INFRASTRUCTURE SETUP =====
-  - task: TerraformInstaller@0
-    displayName: '🏗️ Install Terraform'
-    inputs:
-      terraformVersion: '$(terraformVersion)'
-  
