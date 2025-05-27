@@ -16,7 +16,7 @@ variables:
   
   # Azure Container Registry settings
   - name: containerRegistry
-    value: 'myappregistry.azurecr.io'
+    value: 'javademoapp'
   - name: imageRepository
     value: 'java-simple-app'
   - name: dockerfilePath
