@@ -1,5 +1,6 @@
 # azure-pipelines.yml
 # Complete Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
+# FIXED: No parallelism - all steps run sequentially
 
 trigger:
   branches:
@@ -38,8 +39,8 @@ stages:
 - stage: Infrastructure
   displayName: 'Setup Infrastructure with Terraform'
   jobs:
-  - job: TerraformPlan
-    displayName: 'Terraform Plan'
+  - job: TerraformPlanAndApply
+    displayName: 'Terraform Plan and Apply'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
@@ -86,31 +87,6 @@ stages:
             echo "✅ Terraform plan completed - no changes needed"
           fi
     
-    # Store terraform plan as artifact
-    - task: PublishPipelineArtifact@1
-      displayName: 'Publish Terraform Plan'
-      inputs:
-        targetPath: '$(terraformWorkingDirectory)'
-        artifact: 'terraform-plan'
-        publishLocation: 'pipeline'
-
-  - job: TerraformApply
-    displayName: 'Terraform Apply'
-    dependsOn: TerraformPlan
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    - task: DownloadPipelineArtifact@2
-      displayName: 'Download Terraform Plan'
-      inputs:
-        artifactName: 'terraform-plan'
-        downloadPath: '$(System.DefaultWorkingDirectory)'
-    
-    - task: TerraformInstaller@0
-      displayName: 'Install Terraform'
-      inputs:
-        terraformVersion: '$(terraformVersion)'
-    
     - task: AzureCLI@2
       displayName: 'Terraform Apply'
       inputs:
@@ -119,7 +95,7 @@ stages:
         scriptLocation: 'inlineScript'
         inlineScript: |
           echo "=== Terraform Infrastructure Deployment ==="
-          cd infrastructure
+          cd $(terraformWorkingDirectory)
           
           # Apply Terraform plan
           echo "Applying Terraform configuration..."
@@ -146,13 +122,13 @@ stages:
   dependsOn: Infrastructure
   variables:
     - name: containerRegistry
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
     - name: acrName
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.acrName'] ]
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.acrName'] ]
     - name: imageName
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.imageName'] ]
   jobs:
-  - job: BuildAndTest
+  - job: BuildTestAndPush
     displayName: 'Build Java App and Create Container'
     pool:
       vmImage: 'ubuntu-latest'
@@ -231,9 +207,9 @@ stages:
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
   variables:
     - name: containerRegistry
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
     - name: imageName
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.imageName'] ]
   jobs:
   - deployment: DeployToDev
     displayName: 'Deploy to Dev Environment'
@@ -276,16 +252,15 @@ stages:
 
 # # ===== DEPLOY TO PRODUCTION =====
 # - stage: Deploy_Production
-#   dependsOn: Deploy_Development
 #   displayName: 'Deploy to Production'
 #   dependsOn: 
 #     - Build
 #   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 #   variables:
 #     - name: containerRegistry
-#       value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+#       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
 #     - name: imageName
-#       value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
+#       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.imageName'] ]
 #   jobs:
 #   - deployment: DeployToProd
 #     displayName: 'Deploy to Production Environment'
@@ -341,11 +316,14 @@ stages:
     - Deploy_Development
   condition: always()  # Run cleanup even if deployments fail
   jobs:
-  - job: WaitJob
-    displayName: 'Wait 5 Minutes'
+  - job: WaitAndCleanupAll
+    displayName: 'Wait 5 Minutes Then Destroy'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
+    - checkout: self
+      displayName: 'Checkout Repository'
+    
     - script: |
         echo "=== Waiting 5 minutes before cleanup ==="
         echo "This gives time to test the deployed applications"
@@ -357,15 +335,11 @@ stages:
         echo "Wait complete at: $(date)"
         echo "Proceeding to cleanup..."
       displayName: 'Wait 5 Minutes'
-  
-  - job: TerraformDestroy
-    displayName: 'Terraform Destroy All Resources'
-    dependsOn: WaitJob
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    - checkout: self
 
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
 
     - task: AzureCLI@2
       displayName: 'Terraform Destroy All Resources'
@@ -407,5 +381,4 @@ stages:
           echo "- Container Apps Environments"
           echo "- Log Analytics Workspace"
           echo "- All Resource Groups"
-          echo "- All associated networking and compute resources"displayName: 'Checkout Repository'
-    
+          echo "- All associated networking and compute resources"
