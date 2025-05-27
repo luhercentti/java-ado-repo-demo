@@ -281,72 +281,72 @@ stages:
                 echo "=== Development Application Updated Successfully! ==="
                 echo "DEV URL: $DEV_APP_URL"
 
-# ===== DEPLOY TO PRODUCTION =====
-- stage: Deploy_Production
-  displayName: 'Deploy to Production'
-  dependsOn: 
-    - Infrastructure
-    - Build
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-  variables:
-    - name: containerRegistry
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
-    - name: imageName
-      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
-  jobs:
-  - deployment: DeployToProd
-    displayName: 'Deploy to Production Environment'
-    pool:
-      vmImage: 'ubuntu-latest'
-    environment: 'production'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - checkout: self
-            displayName: 'Checkout Repository'
+# # ===== DEPLOY TO PRODUCTION =====
+# - stage: Deploy_Production
+#   displayName: 'Deploy to Production'
+#   dependsOn: 
+#     - Infrastructure
+#     - Build
+#   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+#   variables:
+#     - name: containerRegistry
+#       value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+#     - name: imageName
+#       value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
+#   jobs:
+#   - deployment: DeployToProd
+#     displayName: 'Deploy to Production Environment'
+#     pool:
+#       vmImage: 'ubuntu-latest'
+#     environment: 'production'
+#     strategy:
+#       runOnce:
+#         deploy:
+#           steps:
+#           - checkout: self
+#             displayName: 'Checkout Repository'
           
-          - task: TerraformInstaller@0
-            displayName: 'Install Terraform'
-            inputs:
-              terraformVersion: '$(terraformVersion)'
+#           - task: TerraformInstaller@0
+#             displayName: 'Install Terraform'
+#             inputs:
+#               terraformVersion: '$(terraformVersion)'
           
-          - task: AzureCLI@2
-            displayName: 'Update Container App Image - PRODUCTION'
-            inputs:
-              azureSubscription: '$(azureSubscription)'
-              scriptType: 'bash'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                echo "=== Updating Production Container App ==="
-                cd infrastructure
+#           - task: AzureCLI@2
+#             displayName: 'Update Container App Image - PRODUCTION'
+#             inputs:
+#               azureSubscription: '$(azureSubscription)'
+#               scriptType: 'bash'
+#               scriptLocation: 'inlineScript'
+#               inlineScript: |
+#                 echo "=== Updating Production Container App ==="
+#                 cd infrastructure
                 
-                # Initialize Terraform
-                terraform init
+#                 # Initialize Terraform
+#                 terraform init
                 
-                # Update container app with new image
-                terraform apply -auto-approve -var-file="prod.tfvars"
+#                 # Update container app with new image
+#                 terraform apply -auto-approve -var-file="prod.tfvars"
                 
-                # Get the application URL
-                PROD_APP_URL=$(terraform output -raw prod_container_app_url)
-                echo "##vso[task.setvariable variable=appUrl]$PROD_APP_URL"
-                echo "=== Production Application Updated Successfully! ==="
-                echo "PROD URL: $PROD_APP_URL"
+#                 # Get the application URL
+#                 PROD_APP_URL=$(terraform output -raw prod_container_app_url)
+#                 echo "##vso[task.setvariable variable=appUrl]$PROD_APP_URL"
+#                 echo "=== Production Application Updated Successfully! ==="
+#                 echo "PROD URL: $PROD_APP_URL"
           
-          # Run smoke tests against production
-          - script: |
-              echo "=== Running production smoke tests ==="
-              # Add your smoke tests here
-              # curl -f $(appUrl)/health || exit 1
-              echo "Smoke tests passed!"
-            displayName: 'Production Smoke Tests'
+#           # Run smoke tests against production
+#           - script: |
+#               echo "=== Running production smoke tests ==="
+#               # Add your smoke tests here
+#               # curl -f $(appUrl)/health || exit 1
+#               echo "Smoke tests passed!"
+#             displayName: 'Production Smoke Tests'
 
 # ===== WAIT AND CLEANUP STAGE =====
 - stage: WaitAndCleanup
   displayName: 'Wait 5 Minutes Then Cleanup Resources'
   dependsOn: 
     - Deploy_Development
-    - Deploy_Production
+    #- Deploy_Production
   condition: always()  # Run cleanup even if deployments fail
   jobs:
   - job: WaitJob
