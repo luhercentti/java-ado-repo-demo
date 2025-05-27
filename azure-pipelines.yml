@@ -51,11 +51,6 @@ stages:
       inputs:
         terraformVersion: '$(terraformVersion)'
     
-    - task: TerraformInstaller@0
-      displayName: 'Install Terraform'
-      inputs:
-        terraformVersion: '$(terraformVersion)'
-    
     - task: AzureCLI@2
       displayName: 'Terraform Init and Plan'
       inputs:
