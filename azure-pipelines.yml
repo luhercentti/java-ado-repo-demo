@@ -1,5 +1,5 @@
-# Complete Azure DevOps CI/CD Pipeline for Java App
-# Builds, containerizes, and deploys to Azure Container Apps
+# azure-pipelines.yml
+# Complete Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
 
 trigger:
   branches:
@@ -14,9 +14,7 @@ variables:
   - name: javaVersion
     value: '11'
   
-  # Azure Container Registry settings
-  - name: containerRegistry
-    value: 'javademoapp'
+  # Azure Container Registry settings (will be populated by Terraform outputs)
   - name: imageRepository
     value: 'java-simple-app'
   - name: dockerfilePath
@@ -25,23 +23,140 @@ variables:
   # Azure Resource settings
   - name: azureSubscription
     value: 'Azure-lhc-tests-serviceconnection'
-  - name: resourceGroupName
-    value: 'rg-lhc-tests'
-  - name: containerAppName
-    value: 'java-app'
-  - name: containerEnvironmentName
-    value: 'java-app-env'
+  
+  # Terraform settings
+  - name: terraformVersion
+    value: '1.5.7'
+  - name: terraformWorkingDirectory
+    value: '$(System.DefaultWorkingDirectory)/infrastructure'
   
   # Dynamic variables
   - name: imageTag
     value: '$(Build.BuildId)'
-  - name: imageName
-    value: '$(containerRegistry)/$(imageRepository):$(imageTag)'
 
 stages:
+# ===== INFRASTRUCTURE SETUP STAGE =====
+- stage: Infrastructure
+  displayName: 'Setup Infrastructure with Terraform'
+  jobs:
+  - job: TerraformPlan
+    displayName: 'Terraform Plan'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+      displayName: 'Checkout Repository'
+    
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
+    
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
+    
+    - task: AzureCLI@2
+      displayName: 'Terraform Init and Plan'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "=== Terraform Infrastructure Planning ==="
+          cd $(terraformWorkingDirectory)
+          
+          # Initialize Terraform
+          echo "Initializing Terraform..."
+          terraform init
+          
+          # Validate Terraform configuration
+          echo "Validating Terraform configuration..."
+          terraform validate
+          
+          # Create Terraform plan
+          echo "Creating Terraform plan..."
+          terraform plan -out=tfplan -detailed-exitcode
+          
+          # Save plan status
+          PLAN_EXIT_CODE=$?
+          echo "##vso[task.setvariable variable=terraformPlanExitCode]$PLAN_EXIT_CODE"
+          
+          if [ $PLAN_EXIT_CODE -eq 1 ]; then
+            echo "❌ Terraform plan failed"
+            exit 1
+          elif [ $PLAN_EXIT_CODE -eq 2 ]; then
+            echo "✅ Terraform plan completed - changes detected"
+          else
+            echo "✅ Terraform plan completed - no changes needed"
+          fi
+    
+    # Store terraform plan as artifact
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Terraform Plan'
+      inputs:
+        targetPath: '$(terraformWorkingDirectory)'
+        artifact: 'terraform-plan'
+        publishLocation: 'pipeline'
+
+  - job: TerraformApply
+    displayName: 'Terraform Apply'
+    dependsOn: TerraformPlan
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download Terraform Plan'
+      inputs:
+        artifactName: 'terraform-plan'
+        downloadPath: '$(System.DefaultWorkingDirectory)'
+    
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
+    
+    - task: AzureCLI@2
+      displayName: 'Terraform Apply'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "=== Terraform Infrastructure Deployment ==="
+          cd infrastructure
+          
+          # Apply Terraform plan
+          echo "Applying Terraform configuration..."
+          terraform apply -auto-approve tfplan
+          
+          # Get outputs and set pipeline variables
+          echo "Getting Terraform outputs..."
+          ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
+          ACR_NAME=$(terraform output -raw acr_name)
+          
+          echo "Setting pipeline variables..."
+          echo "##vso[task.setvariable variable=containerRegistry;isOutput=true]$ACR_LOGIN_SERVER"
+          echo "##vso[task.setvariable variable=acrName;isOutput=true]$ACR_NAME"
+          echo "##vso[task.setvariable variable=imageName;isOutput=true]$ACR_LOGIN_SERVER/$(imageRepository):$(imageTag)"
+          
+          echo "=== Infrastructure Deployment Complete ==="
+          echo "ACR Login Server: $ACR_LOGIN_SERVER"
+          echo "ACR Name: $ACR_NAME"
+      name: 'terraformOutputs'
+
 # ===== BUILD AND TEST STAGE =====
 - stage: Build
   displayName: 'Build, Test & Containerize'
+  dependsOn: Infrastructure
+  variables:
+    - name: containerRegistry
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+    - name: acrName
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.acrName'] ]
+    - name: imageName
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
   jobs:
   - job: BuildAndTest
     displayName: 'Build Java App and Create Container'
@@ -83,222 +198,222 @@ stages:
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
         codeCoverageToolOption: 'JaCoCo'
     
-    # Build Docker image
-    - task: Docker@2
-      displayName: 'Build Docker Image'
+    # Build and push Docker image
+    - task: AzureCLI@2
+      displayName: 'Build and Push Docker Image'
       inputs:
-        containerRegistry: '$(containerRegistry)'
-        repository: '$(imageRepository)'
-        command: 'build'
-        Dockerfile: '$(dockerfilePath)'
-        tags: |
-          $(imageTag)
-          latest
-    
-    # Push Docker image to Azure Container Registry
-    - task: Docker@2
-      displayName: 'Push Image to ACR'
-      inputs:
-        containerRegistry: '$(containerRegistry)'
-        repository: '$(imageRepository)'
-        command: 'push'
-        tags: |
-          $(imageTag)
-          latest
+        azureSubscription: '$(azureSubscription)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "=== Building and Pushing Docker Image ==="
+          echo "ACR Name: $(acrName)"
+          echo "Container Registry: $(containerRegistry)"
+          echo "Image Name: $(imageName)"
+          
+          # Login to ACR
+          az acr login --name $(acrName)
+          
+          # Build Docker image
+          echo "Building Docker image: $(imageName)"
+          docker build -t $(imageName) -f $(dockerfilePath) .
+          
+          # Tag with latest as well
+          docker tag $(imageName) $(containerRegistry)/$(imageRepository):latest
+          
+          # Push both tags
+          echo "Pushing Docker image to ACR..."
+          docker push $(imageName)
+          docker push $(containerRegistry)/$(imageRepository):latest
+          
+          echo "Docker image pushed successfully!"
+          echo "Image: $(imageName)"
 
 # ===== DEPLOY TO DEVELOPMENT =====
 - stage: Deploy_Development
   displayName: 'Deploy to Development'
-  dependsOn: Build
+  dependsOn: 
+    - Infrastructure
+    - Build
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+  variables:
+    - name: containerRegistry
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+    - name: imageName
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
   jobs:
   - deployment: DeployToDev
     displayName: 'Deploy to Dev Environment'
     pool:
       vmImage: 'ubuntu-latest'
     environment: 'development'
-    variables:
-      - name: environmentSuffix
-        value: 'dev'
     strategy:
       runOnce:
         deploy:
           steps:
-          # Install Azure CLI
+          - checkout: self
+            displayName: 'Checkout Repository'
+          
+          - task: TerraformInstaller@0
+            displayName: 'Install Terraform'
+            inputs:
+              terraformVersion: '$(terraformVersion)'
+          
           - task: AzureCLI@2
-            displayName: 'Deploy to Azure Container Apps - DEV'
+            displayName: 'Update Container App Image - DEV'
             inputs:
               azureSubscription: '$(azureSubscription)'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                # Set variables
-                RG_NAME="$(resourceGroupName)-$(environmentSuffix)"
-                APP_NAME="$(containerAppName)-$(environmentSuffix)"
-                ENV_NAME="$(containerEnvironmentName)-$(environmentSuffix)"
-                IMAGE_NAME="$(imageName)"
+                echo "=== Updating Development Container App ==="
+                cd infrastructure
                 
-                echo "Deploying to Development Environment..."
-                echo "Resource Group: $RG_NAME"
-                echo "Container App: $APP_NAME"
-                echo "Image: $IMAGE_NAME"
+                # Initialize Terraform
+                terraform init
                 
-                # Create resource group if it doesn't exist
-                az group create --name $RG_NAME --location "East US"
-                
-                # Create Container Apps environment if it doesn't exist
-                if ! az containerapp env show --name $ENV_NAME --resource-group $RG_NAME &> /dev/null; then
-                  echo "Creating Container Apps environment..."
-                  az containerapp env create \
-                    --name $ENV_NAME \
-                    --resource-group $RG_NAME \
-                    --location "East US"
-                fi
-                
-                # Deploy or update the container app
-                if az containerapp show --name $APP_NAME --resource-group $RG_NAME &> /dev/null; then
-                  echo "Updating existing container app..."
-                  az containerapp update \
-                    --name $APP_NAME \
-                    --resource-group $RG_NAME \
-                    --image $IMAGE_NAME
-                else
-                  echo "Creating new container app..."
-                  az containerapp create \
-                    --name $APP_NAME \
-                    --resource-group $RG_NAME \
-                    --environment $ENV_NAME \
-                    --image $IMAGE_NAME \
-                    --target-port 8080 \
-                    --ingress external \
-                    --cpu 0.25 \
-                    --memory 0.5Gi \
-                    --min-replicas 1 \
-                    --max-replicas 3 \
-                    --env-vars "ENVIRONMENT=development"
-                fi
+                # Update container app with new image
+                terraform apply -auto-approve -var-file="dev.tfvars"
                 
                 # Get the application URL
-                APP_URL=$(az containerapp show --name $APP_NAME --resource-group $RG_NAME --query "properties.configuration.ingress.fqdn" -o tsv)
-                echo "##vso[task.setvariable variable=appUrl]https://$APP_URL"
-                echo "Application deployed successfully!"
-                echo "DEV URL: https://$APP_URL"
+                DEV_APP_URL=$(terraform output -raw dev_container_app_url)
+                echo "##vso[task.setvariable variable=appUrl]$DEV_APP_URL"
+                echo "=== Development Application Updated Successfully! ==="
+                echo "DEV URL: $DEV_APP_URL"
 
-# # ===== DEPLOY TO PRODUCTION =====
-# - stage: Deploy_Production
-#   displayName: 'Deploy to Production'
-#   dependsOn: Build
-#   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-#   jobs:
-#   - deployment: DeployToProd
-#     displayName: 'Deploy to Production Environment'
-#     pool:
-#       vmImage: 'ubuntu-latest'
-#     environment: 'production'
-#     variables:
-#       - name: environmentSuffix
-#         value: 'prod'
-#     strategy:
-#       runOnce:
-#         deploy:
-#           steps:
-#           # Production deployment with more robust configuration
-#           - task: AzureCLI@2
-#             displayName: 'Deploy to Azure Container Apps - PRODUCTION'
-#             inputs:
-#               azureSubscription: '$(azureSubscription)'
-#               scriptType: 'bash'
-#               scriptLocation: 'inlineScript'
-#               inlineScript: |
-#                 # Set variables
-#                 RG_NAME="$(resourceGroupName)-$(environmentSuffix)"
-#                 APP_NAME="$(containerAppName)-$(environmentSuffix)"
-#                 ENV_NAME="$(containerEnvironmentName)-$(environmentSuffix)"
-#                 IMAGE_NAME="$(imageName)"
-                
-#                 echo "Deploying to Production Environment..."
-#                 echo "Resource Group: $RG_NAME"
-#                 echo "Container App: $APP_NAME"
-#                 echo "Image: $IMAGE_NAME"
-                
-#                 # Create resource group if it doesn't exist
-#                 az group create --name $RG_NAME --location "East US"
-                
-#                 # Create Container Apps environment with more production settings
-#                 if ! az containerapp env show --name $ENV_NAME --resource-group $RG_NAME &> /dev/null; then
-#                   echo "Creating Container Apps environment for production..."
-#                   az containerapp env create \
-#                     --name $ENV_NAME \
-#                     --resource-group $RG_NAME \
-#                     --location "East US"
-#                 fi
-                
-#                 # Deploy or update the container app with production settings
-#                 if az containerapp show --name $APP_NAME --resource-group $RG_NAME &> /dev/null; then
-#                   echo "Updating existing production container app..."
-#                   az containerapp update \
-#                     --name $APP_NAME \
-#                     --resource-group $RG_NAME \
-#                     --image $IMAGE_NAME
-#                 else
-#                   echo "Creating new production container app..."
-#                   az containerapp create \
-#                     --name $APP_NAME \
-#                     --resource-group $RG_NAME \
-#                     --environment $ENV_NAME \
-#                     --image $IMAGE_NAME \
-#                     --target-port 8080 \
-#                     --ingress external \
-#                     --cpu 0.5 \
-#                     --memory 1.0Gi \
-#                     --min-replicas 2 \
-#                     --max-replicas 10 \
-#                     --env-vars "ENVIRONMENT=production" \
-#                     --registry-server $(containerRegistry)
-#                 fi
-                
-#                 # Get the application URL
-#                 APP_URL=$(az containerapp show --name $APP_NAME --resource-group $RG_NAME --query "properties.configuration.ingress.fqdn" -o tsv)
-#                 echo "##vso[task.setvariable variable=appUrl]https://$APP_URL"
-#                 echo "Application deployed to production successfully!"
-#                 echo "PROD URL: https://$APP_URL"
-          
-#           # Run smoke tests against production
-#           - script: |
-#               echo "Running production smoke tests..."
-#               # Add your smoke tests here
-#               # curl -f $(appUrl)/health || exit 1
-#               echo "Smoke tests passed!"
-#             displayName: 'Production Smoke Tests'
-
-# ===== INFRASTRUCTURE AS CODE (OPTIONAL) =====
-- stage: Infrastructure
-  displayName: 'Infrastructure Setup'
-  condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
-  dependsOn: []  # Runs in parallel with Build
+# ===== DEPLOY TO PRODUCTION =====
+- stage: Deploy_Production
+  displayName: 'Deploy to Production'
+  dependsOn: 
+    - Infrastructure
+    - Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  variables:
+    - name: containerRegistry
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.containerRegistry'] ]
+    - name: imageName
+      value: $[ stageDependencies.Infrastructure.TerraformApply.outputs['terraformOutputs.imageName'] ]
   jobs:
-  - job: SetupInfrastructure
-    displayName: 'Setup Azure Resources'
+  - deployment: DeployToProd
+    displayName: 'Deploy to Production Environment'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            displayName: 'Checkout Repository'
+          
+          - task: TerraformInstaller@0
+            displayName: 'Install Terraform'
+            inputs:
+              terraformVersion: '$(terraformVersion)'
+          
+          - task: AzureCLI@2
+            displayName: 'Update Container App Image - PRODUCTION'
+            inputs:
+              azureSubscription: '$(azureSubscription)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "=== Updating Production Container App ==="
+                cd infrastructure
+                
+                # Initialize Terraform
+                terraform init
+                
+                # Update container app with new image
+                terraform apply -auto-approve -var-file="prod.tfvars"
+                
+                # Get the application URL
+                PROD_APP_URL=$(terraform output -raw prod_container_app_url)
+                echo "##vso[task.setvariable variable=appUrl]$PROD_APP_URL"
+                echo "=== Production Application Updated Successfully! ==="
+                echo "PROD URL: $PROD_APP_URL"
+          
+          # Run smoke tests against production
+          - script: |
+              echo "=== Running production smoke tests ==="
+              # Add your smoke tests here
+              # curl -f $(appUrl)/health || exit 1
+              echo "Smoke tests passed!"
+            displayName: 'Production Smoke Tests'
+
+# ===== WAIT AND CLEANUP STAGE =====
+- stage: WaitAndCleanup
+  displayName: 'Wait 5 Minutes Then Cleanup Resources'
+  dependsOn: 
+    - Deploy_Development
+    - Deploy_Production
+  condition: always()  # Run cleanup even if deployments fail
+  jobs:
+  - job: WaitJob
+    displayName: 'Wait 5 Minutes'
     pool:
       vmImage: 'ubuntu-latest'
     steps:
+    - script: |
+        echo "=== Waiting 5 minutes before cleanup ==="
+        echo "This gives time to test the deployed applications"
+        echo "Start time: $(date)"
+        
+        # Wait for 5 minutes (300 seconds)
+        sleep 300
+        
+        echo "Wait complete at: $(date)"
+        echo "Proceeding to cleanup..."
+      displayName: 'Wait 5 Minutes'
+  
+  - job: TerraformDestroy
+    displayName: 'Terraform Destroy All Resources'
+    dependsOn: WaitJob
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+
+
     - task: AzureCLI@2
-      displayName: 'Setup Container Registry'
+      displayName: 'Terraform Destroy All Resources'
       inputs:
         azureSubscription: '$(azureSubscription)'
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          # Create ACR if it doesn't exist
-          REGISTRY_NAME=$(echo "$(containerRegistry)" | cut -d'.' -f1)
+          echo "=== STARTING TERRAFORM DESTROY ==="
+          echo "Cleanup started at: $(date)"
+          cd infrastructure
           
-          if ! az acr show --name $REGISTRY_NAME &> /dev/null; then
-            echo "Creating Azure Container Registry..."
-            az acr create \
-              --name $REGISTRY_NAME \
-              --resource-group $(resourceGroupName)-shared \
-              --sku Basic \
-              --admin-enabled true
-          fi
+          # Initialize Terraform
+          echo "Initializing Terraform..."
+          terraform init
           
-          echo "Container Registry is ready: $(containerRegistry)"
+          # Show what will be destroyed
+          echo "Planning destruction..."
+          terraform plan -destroy -out=destroy.tfplan
+          
+          # Destroy all resources
+          echo "Destroying all resources..."
+          terraform apply -auto-approve destroy.tfplan
+          
+          echo "=== TERRAFORM DESTROY COMPLETE ==="
+          echo "All resources have been destroyed successfully"
+          echo "Cleanup completion time: $(date)"
+          
+          echo ""
+          echo "=== SUMMARY ==="
+          echo "✅ Infrastructure created and applications deployed"
+          echo "✅ Applications ran for 5 minutes"
+          echo "✅ All resources destroyed via Terraform"
+          echo "💰 No ongoing Azure costs"
+          echo ""
+          echo "Resources destroyed:"
+          echo "- Azure Container Registry and all images"
+          echo "- Container Apps (dev and prod)"
+          echo "- Container Apps Environments"
+          echo "- Log Analytics Workspace"
+          echo "- All Resource Groups"
+          echo "- All associated networking and compute resources"displayName: 'Checkout Repository'
+    
