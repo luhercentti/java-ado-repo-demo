@@ -1,6 +1,5 @@
 # azure-pipelines.yml
-# Simplified Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
-# Single terraform deployment with placeholder image, then update with actual app image
+# Fixed Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
 
 trigger:
   branches:
@@ -154,7 +153,7 @@ stages:
 # ===== BUILD AND TEST STAGE =====
 - stage: Build
   displayName: 'Build, Test & Containerize'
-  #dependsOn: Infrastructure
+  dependsOn: Infrastructure
   variables:
     - name: containerRegistry
       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
@@ -175,7 +174,7 @@ stages:
     - checkout: self
       displayName: 'Checkout Repository'
     
-   # Set up Java
+    # Set up Java
     - script: |
         echo "##vso[task.setvariable variable=JAVA_HOME]/usr/lib/jvm/java-11-openjdk-arm64"
         echo "##vso[task.prependpath]$JAVA_HOME/bin"
@@ -185,30 +184,28 @@ stages:
     - script: java -version
       displayName: 'Check Java Version'
     
-    # Cache Maven dependencies
+    # Cache Maven dependencies - FIXED
     - task: Cache@2
       displayName: 'Cache Maven Dependencies'
       inputs:
         key: 'maven | "$(Agent.OS)" | **/pom.xml'
         restoreKeys: |
           maven | "$(Agent.OS)"
-        path: $(MAVEN_CACHE_FOLDER)
-      env:
-        MAVEN_CACHE_FOLDER: $(Pipeline.Workspace)/.m2/repository
+        path: $(Pipeline.Workspace)/.m2/repository
     
-# Maven: Clean, compile, test, package
+    # Maven: Clean, compile, test, package - FIXED
     - task: Maven@4
       displayName: 'Maven: Clean Compile Test Package'
       inputs:
         mavenPomFile: '$(mavenPomFile)'
         goals: 'clean compile test package'
-        options: '-B -DskipTests=false'
+        options: '-B -DskipTests=false -Dmaven.repo.local=$(Pipeline.Workspace)/.m2/repository'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
         mavenVersionOption: 'Default'
         mavenAuthenticateFeed: false
         effectivePomSkip: false
-        sonarQubeRunAnalysis: falsecat
+        sonarQubeRunAnalysis: false
         checkStyleRunAnalysis: false
         pmdRunAnalysis: false
         findBugsRunAnalysis: false
@@ -216,8 +213,16 @@ stages:
         codeCoverageFailIfEmpty: false
       env:
         MAVEN_OPTS: '-Xmx3072m'
+    
+    # Debug: List target directory contents
+    - script: |
+        echo "=== Listing target directory contents ==="
+        ls -la target/
+        echo "=== Looking for JAR files ==="
+        find target/ -name "*.jar" -type f
+      displayName: 'Debug: List JAR files'
             
-    # Build and push Docker image
+    # Build and push Docker image - IMPROVED ERROR HANDLING
     - task: AzureCLI@2
       displayName: 'Build and Push Docker Image'
       inputs:
@@ -230,12 +235,35 @@ stages:
           echo "Container Registry: $(containerRegistry)"
           echo "Image Name: $(imageName)"
           
+          # Check if JAR file exists before building
+          echo "Checking for JAR files in target directory..."
+          ls -la target/
+          
+          # Find the actual JAR file name
+          JAR_FILE=$(find target/ -name "*.jar" -not -name "*sources.jar" -not -name "*javadoc.jar" | head -1)
+          
+          if [ -z "$JAR_FILE" ]; then
+            echo "❌ No JAR file found in target directory!"
+            exit 1
+          fi
+          
+          echo "Found JAR file: $JAR_FILE"
+          
           # Login to ACR
           az acr login --name $(acrName)
           
-          # Build Docker image
+          # Build Docker image with build args
           echo "Building Docker image: $(imageName)"
-          docker build -t $(imageName) -f $(dockerfilePath) .
+          docker build \
+            --build-arg JAR_FILE=$(basename $JAR_FILE) \
+            -t $(imageName) \
+            -f $(dockerfilePath) .
+          
+          # Verify image was built
+          if ! docker images $(imageName) | grep -q "$(imageTag)"; then
+            echo "❌ Docker image build failed!"
+            exit 1
+          fi
           
           # Tag with latest as well
           docker tag $(imageName) $(containerRegistry)/$(imageRepository):latest
@@ -252,6 +280,7 @@ stages:
 - stage: Deploy
   displayName: 'Update Container App with Application Image'
   dependsOn: 
+    - Infrastructure
     - Build
   variables:
     - name: containerRegistry

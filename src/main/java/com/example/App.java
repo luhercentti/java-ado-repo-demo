@@ -2,18 +2,79 @@ package com.example;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Simple Java Application for Azure DevOps CI/CD Demo
+ * Long-running version suitable for containers
  */
 public class App {
     
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    private volatile boolean running = true;
+    
     public static void main(String[] args) {
         App app = new App();
+        
+        // Add shutdown hook for graceful termination
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("Shutting down gracefully...");
+            app.shutdown();
+        }));
+        
         System.out.println("=== Simple Java Application ===");
         System.out.println(app.getWelcomeMessage());
         System.out.println("Current time: " + app.getCurrentTime());
         System.out.println("Application started successfully!");
+        
+        // Start the long-running process
+        app.startPeriodicTask();
+        
+        // Keep the main thread alive
+        app.keepAlive();
+    }
+    
+    /**
+     * Starts a periodic task that runs every minute
+     */
+    public void startPeriodicTask() {
+        scheduler.scheduleAtFixedRate(() -> {
+            if (running) {
+                System.out.println("Health check: " + getCurrentTime() + " - Application is running");
+            }
+        }, 0, 60, TimeUnit.SECONDS); // Run every 60 seconds
+    }
+    
+    /**
+     * Keeps the application running
+     */
+    public void keepAlive() {
+        try {
+            while (running) {
+                Thread.sleep(1000); // Sleep for 1 second
+            }
+        } catch (InterruptedException e) {
+            System.out.println("Application interrupted");
+            Thread.currentThread().interrupt();
+        }
+    }
+    
+    /**
+     * Shuts down the application gracefully
+     */
+    public void shutdown() {
+        running = false;
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
     
     /**

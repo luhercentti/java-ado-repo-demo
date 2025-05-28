@@ -2,6 +2,7 @@ package com.example;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -14,6 +15,12 @@ public class AppTest {
     @BeforeEach
     void setUp() {
         app = new App();
+    }
+    
+    @AfterEach
+    void tearDown() {
+        // Ensure proper cleanup after each test
+        app.shutdown();
     }
     
     @Test
@@ -48,5 +55,23 @@ public class AppTest {
         assertTrue(app.isEmpty("   "));
         assertFalse(app.isEmpty("hello"));
         assertFalse(app.isEmpty("  hello  "));
+    }
+    
+    @Test
+    void testStartPeriodicTask() {
+        // Test that the periodic task can be started without throwing exceptions
+        assertDoesNotThrow(() -> {
+            app.startPeriodicTask();
+            Thread.sleep(100); // Small delay to ensure task starts
+        });
+    }
+    
+    @Test
+    void testShutdown() {
+        // Test that shutdown executes without throwing exceptions
+        assertDoesNotThrow(() -> {
+            app.startPeriodicTask();
+            app.shutdown();
+        });
     }
 }
