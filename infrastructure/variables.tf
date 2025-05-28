@@ -14,7 +14,7 @@ variable "location" {
 variable "resource_group_name" {
   description = "Name of the main resource group"
   type        = string
- #default     = "rg-lhc-tests"
+  default     = "rg-lhc-tests-java"
 }
 
 variable "acr_name" {
