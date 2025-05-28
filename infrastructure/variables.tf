@@ -2,19 +2,19 @@
 variable "project_name" {
   description = "Name of the project"
   type        = string
-  default     = "java-demo-app"
+  default     = "java-demo-app-lhc"
 }
 
 variable "location" {
   description = "Azure region for all resources"
   type        = string
-  default     = "East US"
+  default     = "East US 2"
 }
 
 variable "resource_group_name" {
   description = "Name of the main resource group"
   type        = string
-  default     = "rg-lhc-tests"
+ #default     = "rg-lhc-tests"
 }
 
 variable "acr_name" {
