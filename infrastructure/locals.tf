@@ -2,7 +2,7 @@
 locals {
   common_tags = {
     Project     = var.project_name
-    Environment = "shared"
+    Environment = var.environment_name
     ManagedBy   = "Terraform"
     CreatedBy   = "AzureDevOps"
   }
@@ -10,8 +10,8 @@ locals {
 
 # infrastructure/outputs.tf
 output "resource_group_name" {
-  description = "Name of the main resource group"
-  value       = azurerm_resource_group.main.name
+  description = "Name of the resource group"
+  value       = data.azurerm_resource_group.existing.name
 }
 
 output "acr_login_server" {
@@ -36,32 +36,17 @@ output "acr_admin_password" {
   sensitive   = true
 }
 
-output "dev_resource_group_name" {
-  description = "Name of the development resource group"
-  value       = var.create_dev_environment ? azurerm_resource_group.dev[0].name : null
+output "container_app_url" {
+  description = "URL of the container app"
+  value       = "https://${azurerm_container_app.main.latest_revision_fqdn}"
 }
 
-output "prod_resource_group_name" {
-  description = "Name of the production resource group"
-  value       = var.create_prod_environment ? azurerm_resource_group.prod[0].name : null
+output "container_app_name" {
+  description = "Name of the container app"
+  value       = azurerm_container_app.main.name
 }
 
-output "dev_container_app_url" {
-  description = "URL of the development container app"
-  value       = var.create_dev_environment ? "https://${azurerm_container_app.dev[0].latest_revision_fqdn}" : null
-}
-
-output "prod_container_app_url" {
-  description = "URL of the production container app"
-  value       = var.create_prod_environment ? "https://${azurerm_container_app.prod[0].latest_revision_fqdn}" : null
-}
-
-output "dev_container_app_name" {
-  description = "Name of the development container app"
-  value       = var.create_dev_environment ? azurerm_container_app.dev[0].name : null
-}
-
-output "prod_container_app_name" {
-  description = "Name of the production container app"
-  value       = var.create_prod_environment ? azurerm_container_app.prod[0].name : null
+output "container_app_environment_name" {
+  description = "Name of the container app environment"
+  value       = azurerm_container_app_environment.main.name
 }

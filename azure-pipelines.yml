@@ -1,6 +1,6 @@
 # azure-pipelines.yml
 # Complete Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
-# FIXED: No parallelism - all steps run sequentially
+# Single environment deployment using existing resource group
 
 trigger:
   branches:
@@ -203,25 +203,24 @@ stages:
           echo "Docker image pushed successfully!"
           echo "Image: $(imageName)"
 
-# ===== DEPLOY TO DEVELOPMENT =====
-- stage: Deploy_Development
-  displayName: 'Deploy to Development'
+# ===== DEPLOY STAGE =====
+- stage: Deploy
+  displayName: 'Deploy Application'
   dependsOn: 
     - Build
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
   variables:
     - name: containerRegistry
       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
     - name: imageName
       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.imageName'] ]
   jobs:
-  - deployment: DeployToDev
-    displayName: 'Deploy to Dev Environment'
+  - deployment: DeployApp
+    displayName: 'Deploy Application'
     pool:
       name: 'Default'
       demands:
       - agent.name -equals ubuntu
-    environment: 'development'
+    environment: 'application'
     strategy:
       runOnce:
         deploy:
@@ -235,87 +234,26 @@ stages:
               terraformVersion: '$(terraformVersion)'
           
           - task: AzureCLI@2
-            displayName: 'Update Container App Image - DEV'
+            displayName: 'Update Container App Image'
             inputs:
               azureSubscription: '$(azureSubscription)'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "=== Updating Development Container App ==="
+                echo "=== Updating Container App ==="
                 cd infrastructure
                 
                 # Initialize Terraform
                 terraform init
                 
                 # Update container app with new image
-                terraform apply -auto-approve -var-file="dev.tfvars"
+                terraform apply -auto-approve
                 
                 # Get the application URL
-                DEV_APP_URL=$(terraform output -raw dev_container_app_url)
-                echo "##vso[task.setvariable variable=appUrl]$DEV_APP_URL"
-                echo "=== Development Application Updated Successfully! ==="
-                echo "DEV URL: $DEV_APP_URL"
-
-# # ===== DEPLOY TO PRODUCTION =====
-# - stage: Deploy_Production
-#   displayName: 'Deploy to Production'
-#   dependsOn: 
-#     - Build
-#   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
-#   variables:
-#     - name: containerRegistry
-#       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
-#     - name: imageName
-#       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.imageName'] ]
-#   jobs:
-#   - deployment: DeployToProd
-#     displayName: 'Deploy to Production Environment'
-#     pool:
-#       name: 'Default'
-#       demands:
-#       - agent.name -equals ubuntu
-#     environment: 'production'
-#     strategy:
-#       runOnce:
-#         deploy:
-#           steps:
-#           - checkout: self
-#             displayName: 'Checkout Repository'
-          
-#           - task: TerraformInstaller@0
-#             displayName: 'Install Terraform'
-#             inputs:
-#               terraformVersion: '$(terraformVersion)'
-          
-#           - task: AzureCLI@2
-#             displayName: 'Update Container App Image - PRODUCTION'
-#             inputs:
-#               azureSubscription: '$(azureSubscription)'
-#               scriptType: 'bash'
-#               scriptLocation: 'inlineScript'
-#               inlineScript: |
-#                 echo "=== Updating Production Container App ==="
-#                 cd infrastructure
-                
-#                 # Initialize Terraform
-#                 terraform init
-                
-#                 # Update container app with new image
-#                 terraform apply -auto-approve -var-file="prod.tfvars"
-                
-#                 # Get the application URL
-#                 PROD_APP_URL=$(terraform output -raw prod_container_app_url)
-#                 echo "##vso[task.setvariable variable=appUrl]$PROD_APP_URL"
-#                 echo "=== Production Application Updated Successfully! ==="
-#                 echo "PROD URL: $PROD_APP_URL"
-          
-#           # Run smoke tests against production
-#           - script: |
-#               echo "=== Running production smoke tests ==="
-#               # Add your smoke tests here
-#               # curl -f $(appUrl)/health || exit 1
-#               echo "Smoke tests passed!"
-#             displayName: 'Production Smoke Tests'
+                APP_URL=$(terraform output -raw container_app_url)
+                echo "##vso[task.setvariable variable=appUrl]$APP_URL"
+                echo "=== Application Updated Successfully! ==="
+                echo "Application URL: $APP_URL"
 
 # ===== WAIT AND CLEANUP STAGE =====
 - stage: WaitAndCleanup
@@ -323,8 +261,7 @@ stages:
   dependsOn: 
     - Infrastructure
     - Build
-    - Deploy_Development
-  #condition: always()  # Run cleanup even if deployments fail
+    - Deploy
   jobs:
   - job: WaitAndCleanupAll
     displayName: 'Wait 5 Minutes Then Destroy'
@@ -338,7 +275,7 @@ stages:
     
     - script: |
         echo "=== Waiting 5 minutes before cleanup ==="
-        echo "This gives time to test the deployed applications"
+        echo "This gives time to test the deployed application"
         echo "Start time: $(date)"
         
         # Wait for 5 minutes (300 seconds)
@@ -382,15 +319,16 @@ stages:
           
           echo ""
           echo "=== SUMMARY ==="
-          echo "✅ Infrastructure created and applications deployed"
-          echo "✅ Applications ran for 5 minutes"
+          echo "✅ Infrastructure created and application deployed"
+          echo "✅ Application ran for 5 minutes"
           echo "✅ All resources destroyed via Terraform"
           echo "💰 No ongoing Azure costs"
           echo ""
           echo "Resources destroyed:"
           echo "- Azure Container Registry and all images"
-          echo "- Container Apps (dev and prod)"
-          echo "- Container Apps Environments"
+          echo "- Container App"
+          echo "- Container App Environment" 
           echo "- Log Analytics Workspace"
-          echo "- All Resource Groups"
           echo "- All associated networking and compute resources"
+          echo ""
+          echo "NOTE: The existing resource group '$(resource_group_name)' was preserved"
