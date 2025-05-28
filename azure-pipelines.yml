@@ -36,120 +36,120 @@ variables:
 
 stages:
 # ===== INFRASTRUCTURE SETUP STAGE =====
-# - stage: Infrastructure
-#   displayName: 'Setup Complete Infrastructure with Terraform'
-#   jobs:
-#   - job: TerraformPlanAndApply
-#     displayName: 'Terraform Plan and Apply'
-#     pool:
-#       name: 'Default'
-#       demands:
-#       - agent.name -equals ubuntu
-#     steps:
-#     - checkout: self
-#       displayName: 'Checkout Repository'
+- stage: Infrastructure
+  displayName: 'Setup Complete Infrastructure with Terraform'
+  jobs:
+  - job: TerraformPlanAndApply
+    displayName: 'Terraform Plan and Apply'
+    pool:
+      name: 'Default'
+      demands:
+      - agent.name -equals ubuntu
+    steps:
+    - checkout: self
+      displayName: 'Checkout Repository'
     
-#     - task: TerraformInstaller@0
-#       displayName: 'Install Terraform'
-#       inputs:
-#         terraformVersion: '$(terraformVersion)'
+    - task: TerraformInstaller@0
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '$(terraformVersion)'
     
-#     - task: AzureCLI@2
-#       displayName: 'Register Required Resource Providers'
-#       inputs:
-#         azureSubscription: '$(azureSubscription)'
-#         scriptType: 'bash'
-#         scriptLocation: 'inlineScript'
-#         inlineScript: |
-#           echo "=== Registering Required Azure Resource Providers ==="
+    - task: AzureCLI@2
+      displayName: 'Register Required Resource Providers'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "=== Registering Required Azure Resource Providers ==="
           
-#           # Register Microsoft.App (Container Apps)
-#           echo "Registering Microsoft.App provider..."
-#           az provider register --namespace Microsoft.App
+          # Register Microsoft.App (Container Apps)
+          echo "Registering Microsoft.App provider..."
+          az provider register --namespace Microsoft.App
           
-#           # Register Microsoft.OperationalInsights (Log Analytics)
-#           echo "Registering Microsoft.OperationalInsights provider..."
-#           az provider register --namespace Microsoft.OperationalInsights
+          # Register Microsoft.OperationalInsights (Log Analytics)
+          echo "Registering Microsoft.OperationalInsights provider..."
+          az provider register --namespace Microsoft.OperationalInsights
           
-#           # Wait for registration to complete
-#           echo "Waiting for Microsoft.App registration..."
-#           APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
-#           LOGS_STATUS=$(az provider show --namespace Microsoft.OperationalInsights --query "registrationState" -o tsv)
+          # Wait for registration to complete
+          echo "Waiting for Microsoft.App registration..."
+          APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
+          LOGS_STATUS=$(az provider show --namespace Microsoft.OperationalInsights --query "registrationState" -o tsv)
           
-#           echo "Microsoft.App status: $APP_STATUS"
-#           echo "Microsoft.OperationalInsights status: $LOGS_STATUS"
+          echo "Microsoft.App status: $APP_STATUS"
+          echo "Microsoft.OperationalInsights status: $LOGS_STATUS"
           
-#           if [ "$APP_STATUS" != "Registered" ]; then
-#             echo "⏳ Waiting for Microsoft.App provider registration to complete..."
-#             while [ "$APP_STATUS" != "Registered" ]; do
-#               sleep 10
-#               APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
-#               echo "Current status: $APP_STATUS"
-#             done
-#           fi
+          if [ "$APP_STATUS" != "Registered" ]; then
+            echo "⏳ Waiting for Microsoft.App provider registration to complete..."
+            while [ "$APP_STATUS" != "Registered" ]; do
+              sleep 10
+              APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
+              echo "Current status: $APP_STATUS"
+            done
+          fi
           
-#           echo "✅ All required resource providers are registered"
+          echo "✅ All required resource providers are registered"
 
-#     - task: AzureCLI@2
-#       displayName: 'Terraform Init, Plan and Apply'
-#       inputs:
-#         azureSubscription: '$(azureSubscription)'
-#         scriptType: 'bash'
-#         scriptLocation: 'inlineScript'
-#         inlineScript: |
-#           echo "=== Terraform Infrastructure Deployment ==="
-#           cd $(terraformWorkingDirectory)
+    - task: AzureCLI@2
+      displayName: 'Terraform Init, Plan and Apply'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "=== Terraform Infrastructure Deployment ==="
+          cd $(terraformWorkingDirectory)
           
-#           # Initialize Terraform
-#           echo "Initializing Terraform..."
-#           terraform init
+          # Initialize Terraform
+          echo "Initializing Terraform..."
+          terraform init
           
-#           # Validate Terraform configuration
-#           echo "Validating Terraform configuration..."
-#           terraform validate
+          # Validate Terraform configuration
+          echo "Validating Terraform configuration..."
+          terraform validate
           
-#           # Create Terraform plan
-#           echo "Creating Terraform plan..."
-#           terraform plan -out=tfplan -detailed-exitcode
+          # Create Terraform plan
+          echo "Creating Terraform plan..."
+          terraform plan -out=tfplan -detailed-exitcode
           
-#           # Save plan status
-#           PLAN_EXIT_CODE=$?
-#           echo "##vso[task.setvariable variable=terraformPlanExitCode]$PLAN_EXIT_CODE"
+          # Save plan status
+          PLAN_EXIT_CODE=$?
+          echo "##vso[task.setvariable variable=terraformPlanExitCode]$PLAN_EXIT_CODE"
           
-#           if [ $PLAN_EXIT_CODE -eq 1 ]; then
-#             echo "❌ Terraform plan failed"
-#             exit 1
-#           elif [ $PLAN_EXIT_CODE -eq 2 ]; then
-#             echo "✅ Terraform plan completed - changes detected"
-#           else
-#             echo "✅ Terraform plan completed - no changes needed"
-#           fi
+          if [ $PLAN_EXIT_CODE -eq 1 ]; then
+            echo "❌ Terraform plan failed"
+            exit 1
+          elif [ $PLAN_EXIT_CODE -eq 2 ]; then
+            echo "✅ Terraform plan completed - changes detected"
+          else
+            echo "✅ Terraform plan completed - no changes needed"
+          fi
           
-#           # Apply Terraform plan (creates everything including Container App with placeholder image)
-#           echo "Applying Terraform configuration..."
-#           terraform apply -auto-approve tfplan
+          # Apply Terraform plan (creates everything including Container App with placeholder image)
+          echo "Applying Terraform configuration..."
+          terraform apply -auto-approve tfplan
           
-#           # Get outputs and set pipeline variables
-#           echo "Getting Terraform outputs..."
-#           ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
-#           ACR_NAME=$(terraform output -raw acr_name)
-#           CONTAINER_APP_NAME=$(terraform output -raw container_app_name)
-#           RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
+          # Get outputs and set pipeline variables
+          echo "Getting Terraform outputs..."
+          ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
+          ACR_NAME=$(terraform output -raw acr_name)
+          CONTAINER_APP_NAME=$(terraform output -raw container_app_name)
+          RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
           
-#           echo "Setting pipeline variables..."
-#           echo "##vso[task.setvariable variable=containerRegistry;isOutput=true]$ACR_LOGIN_SERVER"
-#           echo "##vso[task.setvariable variable=acrName;isOutput=true]$ACR_NAME"
-#           echo "##vso[task.setvariable variable=containerAppName;isOutput=true]$CONTAINER_APP_NAME"
-#           echo "##vso[task.setvariable variable=resourceGroupName;isOutput=true]$RESOURCE_GROUP_NAME"
-#           echo "##vso[task.setvariable variable=imageName;isOutput=true]$ACR_LOGIN_SERVER/$(imageRepository):$(imageTag)"
+          echo "Setting pipeline variables..."
+          echo "##vso[task.setvariable variable=containerRegistry;isOutput=true]$ACR_LOGIN_SERVER"
+          echo "##vso[task.setvariable variable=acrName;isOutput=true]$ACR_NAME"
+          echo "##vso[task.setvariable variable=containerAppName;isOutput=true]$CONTAINER_APP_NAME"
+          echo "##vso[task.setvariable variable=resourceGroupName;isOutput=true]$RESOURCE_GROUP_NAME"
+          echo "##vso[task.setvariable variable=imageName;isOutput=true]$ACR_LOGIN_SERVER/$(imageRepository):$(imageTag)"
           
-#           echo "=== Infrastructure Deployment Complete ==="
-#           echo "ACR Login Server: $ACR_LOGIN_SERVER"
-#           echo "ACR Name: $ACR_NAME"
-#           echo "Container App: $CONTAINER_APP_NAME"
-#           echo "Resource Group: $RESOURCE_GROUP_NAME"
-#           echo "Container App is currently running with placeholder image"
-#       name: 'terraformOutputs'
+          echo "=== Infrastructure Deployment Complete ==="
+          echo "ACR Login Server: $ACR_LOGIN_SERVER"
+          echo "ACR Name: $ACR_NAME"
+          echo "Container App: $CONTAINER_APP_NAME"
+          echo "Resource Group: $RESOURCE_GROUP_NAME"
+          echo "Container App is currently running with placeholder image"
+      name: 'terraformOutputs'
 
 # ===== BUILD AND TEST STAGE =====
 - stage: Build
