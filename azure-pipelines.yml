@@ -153,7 +153,7 @@ stages:
 # ===== BUILD AND TEST STAGE =====
 - stage: Build
   displayName: 'Build, Test & Containerize'
-  dependsOn: Infrastructure
+  #dependsOn: Infrastructure
   variables:
     - name: containerRegistry
       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
