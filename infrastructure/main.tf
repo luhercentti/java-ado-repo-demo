@@ -7,14 +7,6 @@ terraform {
       version = "~> 3.0"
     }
   }
-  
-  # Backend configuration - uncomment and configure for remote state
-  # backend "azurerm" {
-  #   resource_group_name  = "rg-terraform-state"
-  #   storage_account_name = "terraformstateaccount"
-  #   container_name       = "tfstate"
-  #   key                  = "java-app.terraform.tfstate"
-  # }
 }
 
 provider "azurerm" {
@@ -65,7 +57,7 @@ resource "azurerm_container_app_environment" "main" {
   tags = local.common_tags
 }
 
-# Container App
+# Container App - Using placeholder image initially
 resource "azurerm_container_app" "main" {
   name                        = var.container_app_name
   container_app_environment_id = azurerm_container_app_environment.main.id
@@ -86,7 +78,9 @@ resource "azurerm_container_app" "main" {
   template {
     container {
       name   = "java-app"
-      image  = "${azurerm_container_registry.acr.login_server}/${var.image_repository}:latest"
+      # Use placeholder image during initial creation
+      # Will be updated after actual image is built and pushed
+      image  = var.placeholder_image
       cpu    = var.container_cpu
       memory = var.container_memory
 
@@ -112,4 +106,12 @@ resource "azurerm_container_app" "main" {
   }
 
   tags = local.common_tags
+
+  # Ignore changes to the image after initial creation
+  # This allows us to update the image via Azure CLI without Terraform overriding it
+  lifecycle {
+    ignore_changes = [
+      template[0].container[0].image
+    ]
+  }
 }

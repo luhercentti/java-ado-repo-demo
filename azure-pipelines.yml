@@ -1,6 +1,6 @@
 # azure-pipelines.yml
-# Complete Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
-# Single environment deployment using existing resource group
+# Simplified Azure DevOps CI/CD Pipeline for Java App with Terraform Infrastructure
+# Single terraform deployment with placeholder image, then update with actual app image
 
 trigger:
   branches:
@@ -14,7 +14,7 @@ variables:
   - name: javaVersion
     value: '11'
   
-  # Azure Container Registry settings (will be populated by Terraform outputs)
+  # Azure Container Registry settings
   - name: imageRepository
     value: 'java-simple-app'
   - name: dockerfilePath
@@ -37,7 +37,7 @@ variables:
 stages:
 # ===== INFRASTRUCTURE SETUP STAGE =====
 - stage: Infrastructure
-  displayName: 'Setup Infrastructure with Terraform'
+  displayName: 'Setup Complete Infrastructure with Terraform'
   jobs:
   - job: TerraformPlanAndApply
     displayName: 'Terraform Plan and Apply'
@@ -73,9 +73,6 @@ stages:
           
           # Wait for registration to complete
           echo "Waiting for Microsoft.App registration..."
-          az provider show --namespace Microsoft.App --query "registrationState" -o tsv
-          
-          # Check registration status
           APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
           LOGS_STATUS=$(az provider show --namespace Microsoft.OperationalInsights --query "registrationState" -o tsv)
           
@@ -94,13 +91,13 @@ stages:
           echo "✅ All required resource providers are registered"
 
     - task: AzureCLI@2
-      displayName: 'Terraform Init and Plan'
+      displayName: 'Terraform Init, Plan and Apply'
       inputs:
         azureSubscription: '$(azureSubscription)'
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          echo "=== Terraform Infrastructure Planning ==="
+          echo "=== Terraform Infrastructure Deployment ==="
           cd $(terraformWorkingDirectory)
           
           # Initialize Terraform
@@ -127,18 +124,8 @@ stages:
           else
             echo "✅ Terraform plan completed - no changes needed"
           fi
-    
-    - task: AzureCLI@2
-      displayName: 'Terraform Apply'
-      inputs:
-        azureSubscription: '$(azureSubscription)'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          echo "=== Terraform Infrastructure Deployment ==="
-          cd $(terraformWorkingDirectory)
           
-          # Apply Terraform plan
+          # Apply Terraform plan (creates everything including Container App with placeholder image)
           echo "Applying Terraform configuration..."
           terraform apply -auto-approve tfplan
           
@@ -146,15 +133,22 @@ stages:
           echo "Getting Terraform outputs..."
           ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
           ACR_NAME=$(terraform output -raw acr_name)
+          CONTAINER_APP_NAME=$(terraform output -raw container_app_name)
+          RESOURCE_GROUP_NAME=$(terraform output -raw resource_group_name)
           
           echo "Setting pipeline variables..."
           echo "##vso[task.setvariable variable=containerRegistry;isOutput=true]$ACR_LOGIN_SERVER"
           echo "##vso[task.setvariable variable=acrName;isOutput=true]$ACR_NAME"
+          echo "##vso[task.setvariable variable=containerAppName;isOutput=true]$CONTAINER_APP_NAME"
+          echo "##vso[task.setvariable variable=resourceGroupName;isOutput=true]$RESOURCE_GROUP_NAME"
           echo "##vso[task.setvariable variable=imageName;isOutput=true]$ACR_LOGIN_SERVER/$(imageRepository):$(imageTag)"
           
           echo "=== Infrastructure Deployment Complete ==="
           echo "ACR Login Server: $ACR_LOGIN_SERVER"
           echo "ACR Name: $ACR_NAME"
+          echo "Container App: $CONTAINER_APP_NAME"
+          echo "Resource Group: $RESOURCE_GROUP_NAME"
+          echo "Container App is currently running with placeholder image"
       name: 'terraformOutputs'
 
 # ===== BUILD AND TEST STAGE =====
@@ -244,7 +238,7 @@ stages:
 
 # ===== DEPLOY STAGE =====
 - stage: Deploy
-  displayName: 'Deploy Application'
+  displayName: 'Update Container App with Application Image'
   dependsOn: 
     - Build
   variables:
@@ -252,9 +246,13 @@ stages:
       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerRegistry'] ]
     - name: imageName
       value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.imageName'] ]
+    - name: containerAppName
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.containerAppName'] ]
+    - name: resourceGroupName
+      value: $[ stageDependencies.Infrastructure.TerraformPlanAndApply.outputs['terraformOutputs.resourceGroupName'] ]
   jobs:
-  - deployment: DeployApp
-    displayName: 'Deploy Application'
+  - deployment: UpdateApp
+    displayName: 'Update Container App Image'
     pool:
       name: 'Default'
       demands:
@@ -267,32 +265,55 @@ stages:
           - checkout: self
             displayName: 'Checkout Repository'
           
-          - task: TerraformInstaller@0
-            displayName: 'Install Terraform'
-            inputs:
-              terraformVersion: '$(terraformVersion)'
-          
           - task: AzureCLI@2
-            displayName: 'Update Container App Image'
+            displayName: 'Update Container App with Application Image'
             inputs:
               azureSubscription: '$(azureSubscription)'
               scriptType: 'bash'
               scriptLocation: 'inlineScript'
               inlineScript: |
-                echo "=== Updating Container App ==="
-                cd infrastructure
+                echo "=== Updating Container App with Application Image ==="
+                echo "Container App: $(containerAppName)"
+                echo "Resource Group: $(resourceGroupName)"
+                echo "New Image: $(imageName)"
                 
-                # Initialize Terraform
-                terraform init
+                # Update the Container App with the new image
+                echo "Updating container app image..."
+                az containerapp update \
+                  --name $(containerAppName) \
+                  --resource-group $(resourceGroupName) \
+                  --image $(imageName)
                 
-                # Update container app with new image
-                terraform apply -auto-approve
+                # Wait a moment for the update to take effect
+                echo "Waiting for update to complete..."
+                sleep 30
                 
                 # Get the application URL
-                APP_URL=$(terraform output -raw container_app_url)
-                echo "##vso[task.setvariable variable=appUrl]$APP_URL"
-                echo "=== Application Updated Successfully! ==="
-                echo "Application URL: $APP_URL"
+                echo "Getting application URL..."
+                APP_URL=$(az containerapp show \
+                  --name $(containerAppName) \
+                  --resource-group $(resourceGroupName) \
+                  --query properties.configuration.ingress.fqdn \
+                  --output tsv)
+                
+                if [ ! -z "$APP_URL" ]; then
+                  APP_URL="https://$APP_URL"
+                  echo "##vso[task.setvariable variable=appUrl]$APP_URL"
+                  echo "=== Application Updated Successfully! ==="
+                  echo "Application URL: $APP_URL"
+                  
+                  # Test the application
+                  echo "Testing application..."
+                  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL || echo "000")
+                  if [ "$HTTP_STATUS" = "200" ]; then
+                    echo "✅ Application is responding successfully (HTTP $HTTP_STATUS)"
+                  else
+                    echo "⚠️  Application may not be ready yet (HTTP $HTTP_STATUS)"
+                    echo "This is normal - Container Apps may take a few minutes to start"
+                  fi
+                else
+                  echo "⚠️  Could not retrieve application URL"
+                fi
 
 # ===== WAIT AND CLEANUP STAGE =====
 - stage: WaitAndCleanup
@@ -358,16 +379,9 @@ stages:
           
           echo ""
           echo "=== SUMMARY ==="
-          echo "✅ Infrastructure created and application deployed"
+          echo "✅ Infrastructure created with placeholder image"
+          echo "✅ Application built and pushed to ACR"
+          echo "✅ Container App updated with application image"
           echo "✅ Application ran for 5 minutes"
           echo "✅ All resources destroyed via Terraform"
           echo "💰 No ongoing Azure costs"
-          echo ""
-          echo "Resources destroyed:"
-          echo "- Azure Container Registry and all images"
-          echo "- Container App"
-          echo "- Container App Environment" 
-          echo "- Log Analytics Workspace"
-          echo "- All associated networking and compute resources"
-          echo ""
-          echo "NOTE: The existing resource group '$(resource_group_name)' was preserved"

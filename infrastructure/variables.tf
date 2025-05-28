@@ -1,77 +1,91 @@
 # infrastructure/variables.tf
-variable "project_name" {
-  description = "Name of the project"
-  type        = string
-  default     = "java-demo-app-lhc"
-}
 
 variable "resource_group_name" {
-  description = "Name of the existing resource group to use"
+  description = "Name of the existing resource group"
   type        = string
   default     = "rg-lhc-tests"
 }
 
+variable "project_name" {
+  description = "Name of the project"
+  type        = string
+  default     = "java-simple"
+}
+
+variable "environment_name" {
+  description = "Environment name"
+  type        = string
+  default     = "dev"
+}
+
 variable "acr_name" {
-  description = "Name of the Azure Container Registry"
+  description = "Azure Container Registry name"
   type        = string
   default     = "javademoapp"
 }
 
 variable "acr_sku" {
-  description = "SKU for the Azure Container Registry"
+  description = "ACR SKU"
   type        = string
   default     = "Basic"
-  validation {
-    condition     = contains(["Basic", "Standard", "Premium"], var.acr_sku)
-    error_message = "ACR SKU must be Basic, Standard, or Premium."
-  }
-}
-
-variable "image_repository" {
-  description = "Name of the container image repository"
-  type        = string
-  default     = "java-simple-app"
-}
-
-variable "container_app_name" {
-  description = "Name for the container app"
-  type        = string
-  default     = "java-app"
 }
 
 variable "container_environment_name" {
-  description = "Name for container app environment"
+  description = "Container Apps Environment name"
   type        = string
   default     = "java-app-env"
 }
 
-variable "environment_name" {
-  description = "Environment name for the application"
+variable "container_app_name" {
+  description = "Container App name"
   type        = string
-  default     = "development"
+  default     = "java-app"
 }
 
-# Container resource settings
+variable "image_repository" {
+  description = "Container image repository name"
+  type        = string
+  default     = "java-simple-app"
+}
+
+variable "placeholder_image" {
+  description = "Placeholder image used during initial Container App creation"
+  type        = string
+  default     = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"  # Microsoft's hello world image
+  # Alternative options:
+  # default     = "nginx:alpine"  # Simple nginx
+  # default     = "httpd:alpine"  # Apache httpd
+}
+
 variable "container_cpu" {
-  description = "CPU allocation for container"
+  description = "Container CPU allocation"
   type        = number
   default     = 0.25
 }
 
 variable "container_memory" {
-  description = "Memory allocation for container"
+  description = "Container memory allocation"
   type        = string
   default     = "0.5Gi"
 }
 
 variable "min_replicas" {
-  description = "Minimum replicas"
+  description = "Minimum number of replicas"
   type        = number
-  default     = 1
+  default     = 0
 }
 
 variable "max_replicas" {
-  description = "Maximum replicas"
+  description = "Maximum number of replicas"
   type        = number
   default     = 3
+}
+
+# Local values
+locals {
+  common_tags = {
+    Environment = var.environment_name
+    Project     = var.project_name
+    ManagedBy   = "Terraform"
+  }
 }
