@@ -55,6 +55,45 @@ stages:
         terraformVersion: '$(terraformVersion)'
     
     - task: AzureCLI@2
+      displayName: 'Register Required Resource Providers'
+      inputs:
+        azureSubscription: '$(azureSubscription)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "=== Registering Required Azure Resource Providers ==="
+          
+          # Register Microsoft.App (Container Apps)
+          echo "Registering Microsoft.App provider..."
+          az provider register --namespace Microsoft.App
+          
+          # Register Microsoft.OperationalInsights (Log Analytics)
+          echo "Registering Microsoft.OperationalInsights provider..."
+          az provider register --namespace Microsoft.OperationalInsights
+          
+          # Wait for registration to complete
+          echo "Waiting for Microsoft.App registration..."
+          az provider show --namespace Microsoft.App --query "registrationState" -o tsv
+          
+          # Check registration status
+          APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
+          LOGS_STATUS=$(az provider show --namespace Microsoft.OperationalInsights --query "registrationState" -o tsv)
+          
+          echo "Microsoft.App status: $APP_STATUS"
+          echo "Microsoft.OperationalInsights status: $LOGS_STATUS"
+          
+          if [ "$APP_STATUS" != "Registered" ]; then
+            echo "⏳ Waiting for Microsoft.App provider registration to complete..."
+            while [ "$APP_STATUS" != "Registered" ]; do
+              sleep 10
+              APP_STATUS=$(az provider show --namespace Microsoft.App --query "registrationState" -o tsv)
+              echo "Current status: $APP_STATUS"
+            done
+          fi
+          
+          echo "✅ All required resource providers are registered"
+
+    - task: AzureCLI@2
       displayName: 'Terraform Init and Plan'
       inputs:
         azureSubscription: '$(azureSubscription)'
