@@ -103,6 +103,7 @@
                     </execution>
                 </executions>
             </plugin>
+
             <!-- JaCoCo Plugin for Code Coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>
@@ -124,3 +125,6 @@
                     </execution>
                 </executions>
             </plugin>
+        </plugins>
+    </build>
+</project>
