@@ -179,9 +179,14 @@ stages:
     - task: JavaToolInstaller@0
       displayName: 'Install Java $(javaVersion)'
       inputs:
-        versionSpec: '$(javaVersion)'
+        versionSpec: '$(javaVersion)'  # e.g., '11'
         jdkArchitectureOption: 'x64'
-        jdkSourceOption: 'PreInstalled'
+        jdkSourceOption: 'LocalDirectory'  # Required for self-hosted agents
+        jdkFile: '/usr/lib/jvm/java-11-openjdk-amd64'  # Path to your JDK
+
+    # Verify Java version
+    - script: java -version
+      displayName: 'Check Java Version'
     
     # Cache Maven dependencies
     - task: Cache@2
