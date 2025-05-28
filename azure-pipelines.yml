@@ -197,7 +197,7 @@ stages:
         MAVEN_CACHE_FOLDER: $(Pipeline.Workspace)/.m2/repository
     
     # Maven: Clean, compile, test, package
-    - task: Maven@3
+    - task: Maven@4
       displayName: 'Maven: Clean Compile Test Package'
       inputs:
         mavenPomFile: '$(mavenPomFile)'
@@ -205,7 +205,20 @@ stages:
         options: '-B -DskipTests=false'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.11'
+        mavenVersionOption: 'Default'
+        mavenAuthenticateFeed: false
+        effectivePomSkip: false
+        sonarQubeRunAnalysis: false
+        checkStyleRunAnalysis: false
+        pmdRunAnalysis: false
+        findBugsRunAnalysis: false
         codeCoverageToolOption: 'JaCoCo'
+        codeCoverageFailIfEmpty: false
+        javaHomeSelection: 'JDKVersion'
+      env:
+        MAVEN_OPTS: '-Xmx3072m'
     
     # Build and push Docker image
     - task: AzureCLI@2
