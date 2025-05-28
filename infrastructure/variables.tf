@@ -80,12 +80,3 @@ variable "max_replicas" {
   type        = number
   default     = 3
 }
-
-# Local values
-locals {
-  common_tags = {
-    Environment = var.environment_name
-    Project     = var.project_name
-    ManagedBy   = "Terraform"
-  }
-}
