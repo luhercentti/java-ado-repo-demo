@@ -175,12 +175,12 @@ stages:
     - checkout: self
       displayName: 'Checkout Repository'
     
-    # Set up Java
+   # Set up Java
     - script: |
-      echo "##vso[task.setvariable variable=JAVA_HOME]/usr/lib/jvm/java-11-openjdk-arm64"
-      echo "##vso[task.prependpath]$JAVA_HOME/bin"
+        echo "##vso[task.setvariable variable=JAVA_HOME]/usr/lib/jvm/java-11-openjdk-arm64"
+        echo "##vso[task.prependpath]$JAVA_HOME/bin"
       displayName: 'Set Java 11 Path'
-
+      
     # Verify Java version
     - script: java -version
       displayName: 'Check Java Version'
