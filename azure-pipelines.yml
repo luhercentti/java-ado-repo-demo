@@ -322,6 +322,7 @@ stages:
   displayName: 'Wait 5 Minutes Then Cleanup Resources'
   dependsOn: 
     - Infrastructure
+    - Build
     - Deploy_Development
   condition: always()  # Run cleanup even if deployments fail
   jobs:
