@@ -205,18 +205,15 @@ stages:
         options: '-B -DskipTests=false'
         publishJUnitResults: true
         testResultsFiles: '**/surefire-reports/TEST-*.xml'
-        javaHomeOption: 'JDKVersion'
-        jdkVersionOption: '1.11'
         mavenVersionOption: 'Default'
         mavenAuthenticateFeed: false
         effectivePomSkip: false
-        sonarQubeRunAnalysis: false
+        sonarQubeRunAnalysis: falsecat
         checkStyleRunAnalysis: false
         pmdRunAnalysis: false
         findBugsRunAnalysis: false
         codeCoverageToolOption: 'JaCoCo'
         codeCoverageFailIfEmpty: false
-        javaHomeSelection: 'JDKVersion'
       env:
         MAVEN_OPTS: '-Xmx3072m'
     
