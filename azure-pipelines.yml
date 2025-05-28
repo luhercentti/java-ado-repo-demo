@@ -324,7 +324,7 @@ stages:
     - Infrastructure
     - Build
     - Deploy_Development
-  condition: always()  # Run cleanup even if deployments fail
+  #condition: always()  # Run cleanup even if deployments fail
   jobs:
   - job: WaitAndCleanupAll
     displayName: 'Wait 5 Minutes Then Destroy'
