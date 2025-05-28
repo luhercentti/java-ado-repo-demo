@@ -320,73 +320,73 @@ stages:
                   echo "⚠️  Could not retrieve application URL"
                 fi
 
-# ===== WAIT AND CLEANUP STAGE =====
-- stage: WaitAndCleanup
-  displayName: 'Wait 5 Minutes Then Cleanup Resources'
-  dependsOn: 
-    - Infrastructure
-    - Build
-    - Deploy
-  jobs:
-  - job: WaitAndCleanupAll
-    displayName: 'Wait 5 Minutes Then Destroy'
-    pool:
-      name: 'Default'
-      demands:
-      - agent.name -equals ubuntu
-    steps:
-    - checkout: self
-      displayName: 'Checkout Repository'
+# # ===== WAIT AND CLEANUP STAGE =====
+# - stage: WaitAndCleanup
+#   displayName: 'Wait 5 Minutes Then Cleanup Resources'
+#   dependsOn: 
+#     - Infrastructure
+#     - Build
+#     - Deploy
+#   jobs:
+#   - job: WaitAndCleanupAll
+#     displayName: 'Wait 5 Minutes Then Destroy'
+#     pool:
+#       name: 'Default'
+#       demands:
+#       - agent.name -equals ubuntu
+#     steps:
+#     - checkout: self
+#       displayName: 'Checkout Repository'
     
-    - script: |
-        echo "=== Waiting 5 minutes before cleanup ==="
-        echo "This gives time to test the deployed application"
-        echo "Start time: $(date)"
+#     - script: |
+#         echo "=== Waiting 5 minutes before cleanup ==="
+#         echo "This gives time to test the deployed application"
+#         echo "Start time: $(date)"
         
-        # Wait for 5 minutes (300 seconds)
-        sleep 300
+#         # Wait for 5 minutes (300 seconds)
+#         sleep 300
         
-        echo "Wait complete at: $(date)"
-        echo "Proceeding to cleanup..."
-      displayName: 'Wait 5 Minutes'
+#         echo "Wait complete at: $(date)"
+#         echo "Proceeding to cleanup..."
+#       displayName: 'Wait 5 Minutes'
 
-    - task: TerraformInstaller@0
-      displayName: 'Install Terraform'
-      inputs:
-        terraformVersion: '$(terraformVersion)'
+#     - task: TerraformInstaller@0
+#       displayName: 'Install Terraform'
+#       inputs:
+#         terraformVersion: '$(terraformVersion)'
 
-    - task: AzureCLI@2
-      displayName: 'Terraform Destroy All Resources'
-      inputs:
-        azureSubscription: '$(azureSubscription)'
-        scriptType: 'bash'
-        scriptLocation: 'inlineScript'
-        inlineScript: |
-          echo "=== STARTING TERRAFORM DESTROY ==="
-          echo "Cleanup started at: $(date)"
-          cd infrastructure
+#     - task: AzureCLI@2
+#       displayName: 'Terraform Destroy All Resources'
+#       inputs:
+#         azureSubscription: '$(azureSubscription)'
+#         scriptType: 'bash'
+#         scriptLocation: 'inlineScript'
+#         inlineScript: |
+#           echo "=== STARTING TERRAFORM DESTROY ==="
+#           echo "Cleanup started at: $(date)"
+#           cd infrastructure
           
-          # Initialize Terraform
-          echo "Initializing Terraform..."
-          terraform init
+#           # Initialize Terraform
+#           echo "Initializing Terraform..."
+#           terraform init
           
-          # Show what will be destroyed
-          echo "Planning destruction..."
-          terraform plan -destroy -out=destroy.tfplan
+#           # Show what will be destroyed
+#           echo "Planning destruction..."
+#           terraform plan -destroy -out=destroy.tfplan
           
-          # Destroy all resources
-          echo "Destroying all resources..."
-          terraform apply -auto-approve destroy.tfplan
+#           # Destroy all resources
+#           echo "Destroying all resources..."
+#           terraform apply -auto-approve destroy.tfplan
           
-          echo "=== TERRAFORM DESTROY COMPLETE ==="
-          echo "All resources have been destroyed successfully"
-          echo "Cleanup completion time: $(date)"
+#           echo "=== TERRAFORM DESTROY COMPLETE ==="
+#           echo "All resources have been destroyed successfully"
+#           echo "Cleanup completion time: $(date)"
           
-          echo ""
-          echo "=== SUMMARY ==="
-          echo "✅ Infrastructure created with placeholder image"
-          echo "✅ Application built and pushed to ACR"
-          echo "✅ Container App updated with application image"
-          echo "✅ Application ran for 5 minutes"
-          echo "✅ All resources destroyed via Terraform"
-          echo "💰 No ongoing Azure costs"
+#           echo ""
+#           echo "=== SUMMARY ==="
+#           echo "✅ Infrastructure created with placeholder image"
+#           echo "✅ Application built and pushed to ACR"
+#           echo "✅ Container App updated with application image"
+#           echo "✅ Application ran for 5 minutes"
+#           echo "✅ All resources destroyed via Terraform"
+#           echo "💰 No ongoing Azure costs"
