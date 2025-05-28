@@ -223,6 +223,7 @@ stages:
       displayName: 'Debug: List JAR files'
             
 # Build and push Docker image - IMPROVED ERROR HANDLING + AMD64 PLATFORM
+# Build and push Docker image - IMPROVED ERROR HANDLING + AMD64 PLATFORM
     - task: AzureCLI@2
       displayName: 'Build and Push Docker Image'
       inputs:
@@ -254,8 +255,12 @@ stages:
           
           # Build Docker image with build args and explicit AMD64 platform
           echo "Building Docker image for linux/amd64 platform: $(imageName)"
-          docker build \
-            --platform linux/amd64 \
+          
+          # Pull the base image for AMD64 explicitly first
+          docker pull --platform linux/amd64 openjdk:11-jre-slim
+          
+          # Build with platform specification using environment variable
+          DOCKER_DEFAULT_PLATFORM=linux/amd64 docker build \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
             -t $(imageName) \
             -f $(dockerfilePath) .
@@ -276,7 +281,7 @@ stages:
           
           echo "Docker image pushed successfully!"
           echo "Image: $(imageName)"
-          
+                    
 # ===== DEPLOY STAGE =====
 - stage: Deploy
   displayName: 'Update Container App with Application Image'
