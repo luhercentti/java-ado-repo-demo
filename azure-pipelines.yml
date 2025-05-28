@@ -222,7 +222,7 @@ stages:
         find target/ -name "*.jar" -type f
       displayName: 'Debug: List JAR files'
             
-    # Build and push Docker image - IMPROVED ERROR HANDLING
+# Build and push Docker image - IMPROVED ERROR HANDLING + AMD64 PLATFORM
     - task: AzureCLI@2
       displayName: 'Build and Push Docker Image'
       inputs:
@@ -252,9 +252,10 @@ stages:
           # Login to ACR
           az acr login --name $(acrName)
           
-          # Build Docker image with build args
-          echo "Building Docker image: $(imageName)"
+          # Build Docker image with build args and explicit AMD64 platform
+          echo "Building Docker image for linux/amd64 platform: $(imageName)"
           docker build \
+            --platform linux/amd64 \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
             -t $(imageName) \
             -f $(dockerfilePath) .
@@ -275,7 +276,7 @@ stages:
           
           echo "Docker image pushed successfully!"
           echo "Image: $(imageName)"
-
+          
 # ===== DEPLOY STAGE =====
 - stage: Deploy
   displayName: 'Update Container App with Application Image'
