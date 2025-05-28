@@ -280,7 +280,7 @@ stages:
 - stage: Deploy
   displayName: 'Update Container App with Application Image'
   dependsOn: 
-    - Infrastructure
+  #  - Infrastructure
     - Build
   variables:
     - name: containerRegistry
