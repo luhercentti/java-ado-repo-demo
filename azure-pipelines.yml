@@ -176,13 +176,10 @@ stages:
       displayName: 'Checkout Repository'
     
     # Set up Java
-    - task: JavaToolInstaller@0
-      displayName: 'Install Java $(javaVersion)'
-      inputs:
-        versionSpec: '$(javaVersion)'  # e.g., '11'
-        jdkArchitectureOption: 'arm64'
-        jdkSourceOption: 'LocalDirectory'  # Required for self-hosted agents
-        jdkFile: '/usr/lib/jvm/java-11-openjdk-arm64'  # Path to your JDK
+    - script: |
+      echo "##vso[task.setvariable variable=JAVA_HOME]/usr/lib/jvm/java-11-openjdk-arm64"
+      echo "##vso[task.prependpath]$JAVA_HOME/bin"
+      displayName: 'Set Java 11 Path'
 
     # Verify Java version
     - script: java -version
