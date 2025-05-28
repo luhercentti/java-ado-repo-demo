@@ -212,7 +212,7 @@ stages:
         codeCoverageToolOption: 'JaCoCo'
         codeCoverageFailIfEmpty: false
       env:
-        MAVEN_OPTS: '-Xmx3072m'
+        MAVEN_OPTS: '-Xmx3072m -XX:MaxPermSize=512m'
     
     # Debug: List target directory contents
     - script: |
