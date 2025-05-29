@@ -254,11 +254,20 @@ stages:
           
           # Build Docker image with build args
           echo "Building Docker image: $(imageName)"
-          docker build \
+          # Set up Docker buildx for cross-platform builds
+          echo "Setting up Docker buildx..."
+          docker buildx create --name multiplatform --driver docker-container --bootstrap --use || docker buildx use multiplatform
+          
+          # Build for AMD64 platform specifically and load into local Docker
+          echo "Building image for linux/amd64 platform..."
+          docker buildx build \
+            --platform linux/amd64 \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
             -t $(imageName) \
-            -f $(dockerfilePath) .
-          
+            -f $(dockerfilePath) \
+            --load \
+            .
+                      
           # Verify image was built
           if ! docker images $(imageName) | grep -q "$(imageTag)"; then
             echo "❌ Docker image build failed!"
