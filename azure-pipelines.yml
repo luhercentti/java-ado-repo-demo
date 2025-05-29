@@ -262,9 +262,9 @@ stages:
           ls -ltra
           docker buildx build \
             --platform linux/amd64 \
-            --build-arg JAR_FILE=$(basename $JAR_FILE) \
-            -t $(imageName) \
-            -f $(dockerfilePath) \
+            --build-arg target/simple-java-app-1.0.0-shaded.jar \
+            -t pruebaaaaa \
+            -f Dockerfile \
             --load \
             .
                       
