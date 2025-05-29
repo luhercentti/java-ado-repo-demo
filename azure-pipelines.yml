@@ -252,13 +252,19 @@ stages:
           # Login to ACR
           az acr login --name $(acrName)
           
+          # Enable Docker buildx for multi-platform builds
+          docker buildx create --use >/dev/null 2>&1 || true
+
           # Build Docker image with build args
           echo "Building Docker image: $(imageName)"
-          docker build \
+          docker buildx build \
+            --platform linux/amd64 \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
             -t $(imageName) \
-            -f $(dockerfilePath) .
-          
+            -f $(dockerfilePath) \
+            --load \
+            .
+                      
           # Verify image was built
           if ! docker images $(imageName) | grep -q "$(imageTag)"; then
             echo "❌ Docker image build failed!"
