@@ -232,10 +232,10 @@ stages:
         scriptType: 'bash'
         scriptLocation: 'inlineScript'
         inlineScript: |
-          echo "=== Building and Pushing Docker Image ==="
-          echo "ACR Name: javademoapp"
-          echo "Container Registry: javademoapp.azurecr.io"
-          echo "Image Name: javademoapp.azurecr.io/java-simple-app:62"
+          # echo "=== Building and Pushing Docker Image ==="
+          # echo "ACR Name: $(acrName)"
+          # echo "Container Registry: $(containerRegistry)"
+          # echo "Image Name: $(imageName)"
           
           # Check if JAR file exists before building
           echo "Checking for JAR files in target directory..."
@@ -265,8 +265,8 @@ stages:
             --platform linux/amd64 \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
             --load \
-            -t $(imageName) \
-            -f $(dockerfilePath) .
+            -t javademoapp.azurecr.io/java-simple-app:62 \
+            -f Dockerfile .
           
           # Verify image was built
           if ! docker images $(imageName) | grep -q "$(imageTag)"; then
@@ -289,7 +289,7 @@ stages:
 - stage: Deploy
   displayName: 'Update Container App with Application Image'
   dependsOn: 
-    #- Infrastructure
+    - Infrastructure
     - Build
   variables:
     - name: containerRegistry
