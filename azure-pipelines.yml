@@ -255,6 +255,7 @@ stages:
           # Build Docker image with build args
           echo "Building Docker image: $(imageName)"
           docker build \
+            --platform linux/amd64 \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
             -t $(imageName) \
             -f $(dockerfilePath) .
