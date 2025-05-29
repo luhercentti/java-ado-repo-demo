@@ -258,6 +258,25 @@ stages:
           echo "Setting up Docker buildx..."
           docker buildx create --name multiplatform --driver docker-container --bootstrap --use || docker buildx use multiplatform
           
+          # Fix DNS resolution
+          echo "Configuring DNS..."
+          sudo systemctl restart systemd-resolved
+          
+          # Add Google DNS as fallback
+          echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+          echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf
+          
+          # Test DNS resolution
+          echo "Testing DNS resolution..."
+          nslookup registry-1.docker.io 8.8.8.8
+          
+          # Restart Docker daemon to pick up DNS changes
+          echo "Restarting Docker daemon..."
+          sudo systemctl restart docker
+          
+          # Wait for Docker to be ready
+          sleep 10
+
           # Build for AMD64 platform specifically and load into local Docker
           echo "Building image for linux/amd64 platform..."
           docker buildx build \
@@ -267,7 +286,7 @@ stages:
             -f $(dockerfilePath) \
             --load \
             .
-                      
+
           # Verify image was built
           if ! docker images $(imageName) | grep -q "$(imageTag)"; then
             echo "❌ Docker image build failed!"
