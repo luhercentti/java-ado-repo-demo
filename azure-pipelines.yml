@@ -193,26 +193,26 @@ stages:
           maven | "$(Agent.OS)"
         path: $(Pipeline.Workspace)/.m2/repository
     
-    # # Maven: Clean, compile, test, package - FIXED
-    # - task: Maven@4
-    #   displayName: 'Maven: Clean Compile Test Package'
-    #   inputs:
-    #     mavenPomFile: '$(mavenPomFile)'
-    #     goals: 'clean compile test package'
-    #     options: '-B -DskipTests=false -Dmaven.repo.local=$(Pipeline.Workspace)/.m2/repository'
-    #     publishJUnitResults: true
-    #     testResultsFiles: '**/surefire-reports/TEST-*.xml'
-    #     mavenVersionOption: 'Default'
-    #     mavenAuthenticateFeed: false
-    #     effectivePomSkip: false
-    #     sonarQubeRunAnalysis: false
-    #     checkStyleRunAnalysis: false
-    #     pmdRunAnalysis: false
-    #     findBugsRunAnalysis: false
-    #     codeCoverageToolOption: 'JaCoCo'
-    #     codeCoverageFailIfEmpty: false
-    #   env:
-    #     MAVEN_OPTS: '-Xmx3072m -XX:MaxPermSize=512m'
+    # Maven: Clean, compile, test, package - FIXED
+    - task: Maven@4
+      displayName: 'Maven: Clean Compile Test Package'
+      inputs:
+        mavenPomFile: '$(mavenPomFile)'
+        goals: 'clean compile test package'
+        options: '-B -DskipTests=false -Dmaven.repo.local=$(Pipeline.Workspace)/.m2/repository'
+        publishJUnitResults: true
+        testResultsFiles: '**/surefire-reports/TEST-*.xml'
+        mavenVersionOption: 'Default'
+        mavenAuthenticateFeed: false
+        effectivePomSkip: false
+        sonarQubeRunAnalysis: false
+        checkStyleRunAnalysis: false
+        pmdRunAnalysis: false
+        findBugsRunAnalysis: false
+        codeCoverageToolOption: 'JaCoCo'
+        codeCoverageFailIfEmpty: false
+      env:
+        MAVEN_OPTS: '-Xmx3072m -XX:MaxPermSize=512m'
     
     # Debug: List target directory contents
     - script: |
