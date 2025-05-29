@@ -250,15 +250,16 @@ stages:
           echo "Found JAR file: $JAR_FILE"
           
           # Login to ACR
-          az acr login --name $(acrName)
+          #az acr login --name $(acrName)
           
           echo Enable Docker buildx for multi-platform builds
-          echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
-          echo "nameserver 208.67.222.222" | sudo tee -a /etc/resolv.conf
+          sudo echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+          sudo echo "nameserver 208.67.222.222" | sudo tee -a /etc/resolv.conf
           docker buildx create --use >/dev/null 2>&1 || true
 
           # Build Docker image with build args
           echo "Building Docker image: $(imageName)"
+          ls -ltra
           docker buildx build \
             --platform linux/amd64 \
             --build-arg JAR_FILE=$(basename $JAR_FILE) \
