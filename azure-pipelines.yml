@@ -253,7 +253,7 @@ stages:
           az acr login --name $(acrName)
           
           echo Enable Docker buildx for multi-platform builds
-          echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf > /dev/null
+          sudo echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf > /dev/null
           docker buildx create --use >/dev/null 2>&1 || true
 
           # Build Docker image with build args
